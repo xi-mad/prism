@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: prism
+server:
+  port: 9990
