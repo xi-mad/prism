@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.ximad.prism.config.model.ScenarioConfig;
+import com.ximad.prism.core.context.ProcessTrace;
 import com.ximad.prism.core.context.RecContext;
 import com.ximad.prism.core.context.RecScope;
 import com.ximad.prism.core.model.RecRequest;
@@ -22,10 +23,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RecommendationService {
 
-    // Define Scope (ThreadLocal alternative)
-    // Note: Constants usually static, but ScopedValue is fine as static final
-    // Using RecScope.CTX defined in RecScope class
-
     private final PipelineExecutor pipelineExecutor;
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
@@ -34,23 +31,20 @@ public class RecommendationService {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public List<RecommendItem> recommend(RecRequest request, String yamlConfig) {
+        return recommendWithTrace(request, yamlConfig).items();
+    }
+    
+    public RecommendResult recommendWithTrace(RecRequest request, String yamlConfig) {
         try {
-            // 1. Parse Config
             ScenarioConfig config = yamlMapper.readValue(yamlConfig, ScenarioConfig.class);
-
-            // 2. Initialize Context
             RecContext context = new RecContext(request);
-            context.setConfig(config); // Set Parsed Config
+            context.setConfig(config);
 
-            // 3. Bind Scope and Execute
-            return ScopedValue.where(RecScope.CTX, context).call(() -> {
+            List<RecommendItem> items = ScopedValue.where(RecScope.CTX, context).call(() -> {
                 try {
                     List<RecommendItem> result = pipelineExecutor.execute();
-
                     if (request.debugMode()) {
                         log.info("\n--- PROCESS TRACE (SUMMARY) ---\n{}\n", context.getTrace().printSummary());
-                        log.info("\n--- FULL STRUCTURED TRACE (JSON) ---\n{}\n",
-                                objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(context.getTrace()));
                     }
                     return result;
                 } catch (Exception e) {
@@ -58,9 +52,14 @@ public class RecommendationService {
                     return Collections.emptyList();
                 }
             });
+            
+            return new RecommendResult(items, context.getTrace());
         } catch (Exception e) {
             log.error("[Trace] ", e);
-            return Collections.emptyList();
+            return new RecommendResult(Collections.emptyList(), null);
         }
     }
+    
+    public record RecommendResult(List<RecommendItem> items, ProcessTrace trace) {}
 }
+

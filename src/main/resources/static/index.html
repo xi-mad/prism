@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prism - 推荐系统演示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: "#00d9ff",
+              secondary: "#00ff88",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .gradient-text {
+        background: linear-gradient(90deg, #00d9ff, #00ff88);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .glass {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .tag-JOB {
+        background: rgba(255, 107, 107, 0.2);
+        color: #ff6b6b;
+      }
+      .tag-HOUSE {
+        background: rgba(78, 205, 196, 0.2);
+        color: #4ecdc4;
+      }
+      .tag-EXPLORE {
+        background: rgba(255, 190, 11, 0.2);
+        color: #ffbe0b;
+      }
+      #yamlEditor {
+        font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        tab-size: 2;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen text-white"
+  >
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+      <!-- Header -->
+      <header class="text-center mb-6">
+        <h1 class="text-4xl font-bold gradient-text mb-1">🔮 Prism</h1>
+        <p class="text-slate-400">推荐系统演示平台 - 完全配置驱动</p>
+      </header>
+
+      <!-- Main Layout: Left Config + Right Results (same height) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Left: Config Panel -->
+        <div class="flex flex-col gap-4">
+          <!-- Basic Params -->
+          <div class="glass rounded-xl p-4">
+            <h3 class="text-lg font-semibold mb-3 text-primary">📝 请求参数</h3>
+            <div class="flex items-center gap-4">
+              <div class="flex-1">
+                <label class="block text-slate-400 text-xs mb-1">用户 ID</label>
+                <input
+                  type="text"
+                  id="userId"
+                  value="alice"
+                  class="w-full px-3 py-2 bg-slate-800/50 border border-slate-600 rounded-lg focus:border-primary focus:outline-none text-sm"
+                />
+              </div>
+              <label
+                class="flex items-center gap-2 text-sm text-slate-400 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  id="debugMode"
+                  checked
+                  class="w-4 h-4 rounded bg-slate-800 border-slate-600 text-primary"
+                />
+                Debug
+              </label>
+              <button
+                onclick="resetConfig()"
+                class="text-xs text-slate-500 hover:text-primary transition"
+              >
+                重置
+              </button>
+            </div>
+          </div>
+
+          <!-- YAML Editor -->
+          <div class="glass rounded-xl p-4 flex-1 flex flex-col">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-lg font-semibold text-primary">⚙️ YAML 配置</h3>
+              <span class="text-xs text-slate-500">可自由编辑</span>
+            </div>
+            <textarea
+              id="yamlEditor"
+              spellcheck="false"
+              class="flex-1 w-full px-3 py-2 bg-slate-900/80 border border-slate-600 rounded-lg focus:border-primary focus:outline-none resize-none text-slate-300 min-h-[300px]"
+            ></textarea>
+            <button
+              onclick="fetchRecommendations()"
+              id="fetchBtn"
+              class="w-full mt-3 py-2.5 px-6 bg-gradient-to-r from-primary to-secondary text-slate-900 font-semibold rounded-lg hover:shadow-lg hover:shadow-primary/30 transition transform hover:-translate-y-0.5"
+            >
+              🚀 执行推荐
+            </button>
+          </div>
+
+          <!-- Available Strategies -->
+          <div class="glass rounded-xl p-4">
+            <h3 class="text-sm font-semibold mb-2 text-primary">
+              📦 可用策略 (点击复制)
+            </h3>
+            <div id="strategiesGrid" class="space-y-1.5 text-xs"></div>
+          </div>
+        </div>
+
+        <!-- Right: Results Panel (fixed height, scroll inside) -->
+        <div class="glass rounded-xl p-4 flex flex-col h-[852px]">
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-lg font-semibold">推荐结果</h2>
+            <span
+              id="resultCount"
+              class="px-3 py-1 bg-primary/20 text-primary rounded-full text-xs"
+              >0 条</span
+            >
+          </div>
+          <div
+            id="results"
+            class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 overflow-y-auto pr-1 content-start"
+          >
+            <div class="col-span-full text-center py-20 text-slate-500">
+              配置好 YAML 后点击 "执行推荐"
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom: Trace Panel (full width, large area) -->
+      <div class="glass rounded-xl p-4">
+        <h3 class="text-lg font-semibold mb-3 text-primary">🔍 执行追踪</h3>
+        <div
+          id="traceContent"
+          class="bg-slate-900/50 rounded-lg p-4 h-[1000px] overflow-y-auto"
+        >
+          <pre class="text-xs text-slate-400 whitespace-pre-wrap">
+等待执行...</pre
+          >
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const DEFAULT_CONFIG = `scenarioId: "home_mixed_feed"
+params:
+  total_timeout: 300
+  
+interceptors: ["Performance", "Deduplication", "Exposure"]
+
+timeouts:
+  RECALL: 200
+  RANK: 50
+  FILTER: 30
+  HYDRATION: 100
+
+experiments:
+  - id: "recall_exp"
+    groups:
+      - name: "full"
+        range: "0-499"
+      - name: "minimal"
+        range: "500-999"
+  - id: "rank_exp"
+    groups:
+      - name: "simple"
+        range: "0-299"
+      - name: "mmoe"
+        range: "300-999"
+    
+experiment:
+  - steps:
+      - name: "ExperimentStrategy"
+        params: {}
+        
+profile:
+  - steps:
+      - name: "MockProfile"
+        params: {}
+        
+filters:
+  - steps:
+      - name: "ExposureFilter"
+        params: {}
+        
+rerank:
+  - steps:
+      - name: "DiversityRerank"
+        params: {}
+      - name: "ExplorationRerank"
+        params: { insert_pos: 2 }
+      - name: "TruncateRerank"
+        params: { limit: 25 }
+        
+hydration:
+  - steps:
+      - name: "MockHydration"
+        params: {}
+    
+recall:
+  - when: { experiment: "recall_exp", variant: "full" }
+    steps:
+      - name: "VectorRecall"
+        params: { timeout: 100 }
+  - when: { experiment: "recall_exp", variant: "minimal" }
+    steps:
+      - name: "CrossDomainRecall"
+        params: { target_biz: "HOUSE" }
+  - steps:
+      - name: "UserInterestRecall"
+        params: {}
+      - name: "HotRecall"
+        params: { count: 30 }
+
+ranking:
+  - when: { experiment: "rank_exp", variant: "simple" }
+    modelId: "SimpleRank"
+    fusionFormula: "pctr * 100"
+  - when: { experiment: "rank_exp", variant: "mmoe" }
+    modelId: "MMoERank"
+    fusionFormula: "pctr * 100 + pcvr * 50"`;
+
+      let availableStrategies = {};
+      document.getElementById("yamlEditor").value = DEFAULT_CONFIG;
+
+      function resetConfig() {
+        document.getElementById("yamlEditor").value = DEFAULT_CONFIG;
+      }
+
+      async function loadStrategies() {
+        try {
+          const response = await fetch("/api/strategies");
+          availableStrategies = await response.json();
+          renderStrategies();
+        } catch (e) {
+          console.error("Failed to load strategies:", e);
+        }
+      }
+
+      function renderStrategies() {
+        const grid = document.getElementById("strategiesGrid");
+        const stageLabels = {
+          recall: "🎯 召回",
+          filter: "🔽 过滤",
+          rank: "📊 排序",
+          rerank: "🔀 重排",
+          hydration: "💧 填充",
+          profile: "👤 画像",
+          experiment: "🧪 实验",
+        };
+        const stageColors = {
+          recall: "text-blue-400",
+          filter: "text-orange-400",
+          rank: "text-green-400",
+          rerank: "text-purple-400",
+          hydration: "text-cyan-400",
+          profile: "text-pink-400",
+          experiment: "text-yellow-400",
+        };
+
+        grid.innerHTML = Object.entries(availableStrategies)
+          .map(
+            ([stage, strategies]) => `
+            <div class="flex items-start gap-2">
+              <span class="${stageColors[stage] || "text-slate-400"} w-16 flex-shrink-0">${stageLabels[stage] || stage}</span>
+              <div class="flex flex-wrap gap-1">
+                ${Array.from(strategies)
+                  .map(
+                    (s) => `
+                  <span onclick="copyStrategy('${s}')" 
+                        class="cursor-pointer px-1.5 py-0.5 bg-slate-700/50 hover:bg-primary/20 rounded text-slate-300 hover:text-primary transition">${s}</span>
+                `,
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `,
+          )
+          .join("");
+      }
+
+      function copyStrategy(name) {
+        navigator.clipboard.writeText(name);
+        const btn = event.target;
+        btn.classList.add("bg-primary/30");
+        setTimeout(() => btn.classList.remove("bg-primary/30"), 200);
+      }
+
+      async function fetchRecommendations() {
+        const userId = document.getElementById("userId").value || "user-001";
+        const debug = document.getElementById("debugMode").checked;
+        const config = document.getElementById("yamlEditor").value;
+        const btn = document.getElementById("fetchBtn");
+        const results = document.getElementById("results");
+        const traceContent = document
+          .getElementById("traceContent")
+          .querySelector("pre");
+
+        btn.disabled = true;
+        btn.textContent = "执行中...";
+        results.innerHTML = `
+          <div class="col-span-full flex flex-col items-center justify-center py-20 text-slate-400">
+            <div class="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mb-3"></div>
+            正在执行推荐流水线...
+          </div>
+        `;
+        traceContent.textContent = "执行中...";
+
+        try {
+          const response = await fetch("/api/recommend", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId, scenario: "custom", debug, config }),
+          });
+          const data = await response.json();
+
+          document.getElementById("resultCount").textContent =
+            `${data.total} 条`;
+
+          if (data.items && data.items.length > 0) {
+            results.innerHTML = data.items
+              .map(
+                (item, index) => `
+              <div class="glass rounded-lg p-3 hover:border-primary/50 transition">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs text-slate-500">#${index + 1}</span>
+                  <span class="text-xs px-2 py-0.5 rounded tag-${item.bizType || "EXPLORE"}">${item.bizType || "EXPLORE"}</span>
+                </div>
+                <div class="text-primary font-medium text-sm truncate mb-2">${item.id}</div>
+                <div class="text-xs space-y-1">
+                  <div class="flex justify-between"><span class="text-slate-500">Score</span><span class="text-secondary">${item.score?.toFixed(2) || "-"}</span></div>
+                  <div class="flex justify-between"><span class="text-slate-500">pCTR</span><span>${item.pctr?.toFixed(4) || "-"}</span></div>
+                </div>
+              </div>
+            `,
+              )
+              .join("");
+          } else {
+            results.innerHTML =
+              '<div class="col-span-full text-center py-20 text-slate-500">暂无推荐结果</div>';
+          }
+
+          if (data.trace) {
+            traceContent.textContent = JSON.stringify(data.trace, null, 2);
+          } else {
+            traceContent.textContent = "未返回 Trace (请勾选 Debug 模式)";
+          }
+        } catch (error) {
+          results.innerHTML = `<div class="col-span-full text-center py-20 text-red-400">请求失败: ${error.message}</div>`;
+          traceContent.textContent = `错误: ${error.message}`;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "🚀 执行推荐";
+        }
+      }
+
+      document.getElementById("yamlEditor").addEventListener("keydown", (e) => {
+        if (e.key === "Tab") {
+          e.preventDefault();
+          const start = e.target.selectionStart;
+          const end = e.target.selectionEnd;
+          e.target.value =
+            e.target.value.substring(0, start) +
+            "  " +
+            e.target.value.substring(end);
+          e.target.selectionStart = e.target.selectionEnd = start + 2;
+        }
+      });
+
+      loadStrategies();
+    </script>
+  </body>
+</html>
