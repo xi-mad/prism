@@ -11,6 +11,7 @@ import com.ximad.prism.core.context.RecContext;
 import com.ximad.prism.core.context.RecScope;
 import com.ximad.prism.core.model.RecRequest;
 import com.ximad.prism.core.model.RecommendItem;
+import com.ximad.prism.engine.parser.ConfigParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,19 +25,26 @@ import java.util.List;
 public class RecommendationService {
 
     private final PipelineExecutor pipelineExecutor;
-    private final ObjectMapper objectMapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private final List<ConfigParser> configParsers;
 
-    public List<RecommendItem> recommend(RecRequest request, String yamlConfig) {
-        return recommendWithTrace(request, yamlConfig).items();
+    public List<RecommendItem> recommend(RecRequest request, String configContent) {
+        return recommendWithTrace(request, configContent).items();
     }
     
-    public RecommendResult recommendWithTrace(RecRequest request, String yamlConfig) {
+    public RecommendResult recommendWithTrace(RecRequest request, String configContent) {
         try {
-            ScenarioConfig config = yamlMapper.readValue(yamlConfig, ScenarioConfig.class);
+            ScenarioConfig config = null;
+            for (ConfigParser parser : configParsers) {
+                if (parser.supports(configContent)) {
+                    config = parser.parse(configContent);
+                    break;
+                }
+            }
+            
+            if (config == null) {
+                throw new IllegalArgumentException("No suitable parser found for configuration content");
+            }
+            
             RecContext context = new RecContext(request);
             context.setConfig(config);
 
@@ -55,7 +63,7 @@ public class RecommendationService {
             
             return new RecommendResult(items, context.getTrace());
         } catch (Exception e) {
-            log.error("[Trace] ", e);
+            log.error("[Trace] Config parsing or execution failed", e);
             return new RecommendResult(Collections.emptyList(), null);
         }
     }
